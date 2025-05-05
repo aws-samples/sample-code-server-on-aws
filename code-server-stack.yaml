@@ -35,6 +35,7 @@ Parameters:
   LatestAmiId:
     Description: latest image id for ubuntu
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>" 
+    # Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
     Default: "/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id" 
   InternetCidrBlock:
     Type: String
@@ -168,8 +169,15 @@ Resources:
               sudo dpkg -i code-server_${VERSION}_amd64.deb
               sudo systemctl enable --now code-server@ubuntu
               sleep 30
+              # Configure password
               sed -i.bak 's/auth: password/auth: none/' /home/ubuntu/.config/code-server/config.yaml
+              # Expose code server service 
               sed -i.bak 's/bind-addr: 127.0.0.1:8080/bind-addr: 0.0.0.0:8080/' /home/ubuntu/.config/code-server/config.yaml
+              # Restart code server
+              sudo systemctl restart code-server@ubuntu
+              # Install extension amazonwebservices.amazon-q-vscode
+              sudo -u ec2-user code-server --install-extension amazonwebservices.amazon-q-vscode
+              # Restart code server
               sudo systemctl restart code-server@ubuntu
             - VERSION: !Ref VSCodeServerVersion
 #------------------------------------------------------
