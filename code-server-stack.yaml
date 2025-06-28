@@ -131,6 +131,22 @@ Resources:
       Roles:
         - Ref: VSCodeServerIAMRole
 #------------------------------------------------------
+# Elastic IP for EC2 Instance
+#------------------------------------------------------
+  VSCodeServerEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: VSCodeServer-EIP
+
+  VSCodeServerEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt VSCodeServerEIP.AllocationId
+      InstanceId: !Ref VSCodeServer
+#------------------------------------------------------
 # EC2 Instance for VSCode Server
 #------------------------------------------------------
   VSCodeServer:
@@ -176,7 +192,7 @@ Resources:
               # Restart code server
               sudo systemctl restart code-server@ubuntu
               # Install extension amazonwebservices.amazon-q-vscode
-              sudo -u ec2-user code-server --install-extension amazonwebservices.amazon-q-vscode
+              sudo -u ubuntu code-server --install-extension amazonwebservices.amazon-q-vscode
               # Restart code server
               sudo systemctl restart code-server@ubuntu
             - VERSION: !Ref VSCodeServerVersion
@@ -214,6 +230,7 @@ Resources:
 #------------------------------------------------------ 
   VSCodeServerCloudFront:
     Type: AWS::CloudFront::Distribution
+    DependsOn: VSCodeServerEIPAssociation
     Metadata:
       cfn_nag:
         rules_to_suppress:
@@ -225,7 +242,7 @@ Resources:
       DistributionConfig:
         Origins:
           - DomainName: !GetAtt VSCodeServer.PublicDnsName
-            Id: !GetAtt VSCodeServer.PublicDnsName
+            Id: VS-code-server
             CustomOriginConfig:
               HTTPPort: 8080
               OriginProtocolPolicy: http-only
@@ -242,7 +259,7 @@ Resources:
           ForwardedValues:
             QueryString: 'false'
           Compress: false
-          TargetOriginId: !GetAtt VSCodeServer.PublicDnsName
+          TargetOriginId: VS-code-server
           ViewerProtocolPolicy: allow-all
           OriginRequestPolicyId: !Ref OriginRequestPolicyId 
           CachePolicyId: !Ref VSCodeServerCloudFrontCachePolicy 
@@ -257,6 +274,10 @@ Outputs:
         - { domain: !GetAtt VSCodeServerCloudFront.DomainName }
     Export:
       Name: !Sub ${AWS::StackName}-domain-name
+  VSCodeServerPublicIP:
+    Value: !Ref VSCodeServerEIP
+    Export:
+      Name: !Sub ${AWS::StackName}-code-server-public-ip
   VSCodeServerPrivateIP:
     Value: !GetAtt VSCodeServer.PrivateIp
     Export:
