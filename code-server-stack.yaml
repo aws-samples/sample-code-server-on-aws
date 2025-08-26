@@ -13,6 +13,8 @@ Mappings:
       PrefixListId: "pl-82a045eb"
     us-east-1: 
       PrefixListId: "pl-3b927c52"
+    us-east-2:
+      PrefixListId: "pl-b6a144df"
     ap-southeast-1:
       PrefixListId: "pl-31a34658"
 #------------------------------------------------------
@@ -125,6 +127,16 @@ Resources:
                 - ec2.amazonaws.com
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+      Policies:
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/code-server/*"
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -181,20 +193,68 @@ Resources:
           Fn::Sub:
             - |
               #!/bin/bash
+              echo "INFO: Starting UserData script execution"
+              
+              # Wait for automatic apt updates to complete
+              echo "INFO: Waiting for automatic apt updates to complete"
+              while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                echo "INFO: Waiting for apt lock to be released..."
+                sleep 10
+              done
+              
+              # Install AWS CLI
+              echo "INFO: Installing AWS CLI prerequisites"
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip
+              echo "INFO: Prerequisites installed, downloading AWS CLI"
+              curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip -o /tmp/aws-cli.zip
+              echo "INFO: Extracting AWS CLI"
+              unzip -q -d /tmp /tmp/aws-cli.zip
+              echo "INFO: Installing AWS CLI"
+              sudo /tmp/aws/install
+              rm -rf /tmp/aws /tmp/aws-cli.zip
+              echo "INFO: AWS CLI installation complete"
+              aws --version
+              
+              # Install code-server
+              echo "INFO: Installing code-server"
               curl -fOL https://github.com/coder/code-server/releases/download/v${VERSION}/code-server_${VERSION}_amd64.deb
               sudo dpkg -i code-server_${VERSION}_amd64.deb
+              echo "INFO: Enabling and starting code-server"
               sudo systemctl enable --now code-server@ubuntu
               sleep 30
+              
               # Configure password
-              sed -i.bak 's/auth: password/auth: none/' /home/ubuntu/.config/code-server/config.yaml
+              echo "INFO: Configuring code-server"
+              # sed -i.bak 's/auth: password/auth: none/' /home/ubuntu/.config/code-server/config.yaml
               # Expose code server service 
               sed -i.bak 's/bind-addr: 127.0.0.1:8080/bind-addr: 0.0.0.0:8080/' /home/ubuntu/.config/code-server/config.yaml
+              
               # Restart code server
+              echo "INFO: Restarting code-server"
               sudo systemctl restart code-server@ubuntu
+              
               # Install extension amazonwebservices.amazon-q-vscode
+              echo "INFO: Installing Amazon Q extension"
               sudo -u ubuntu code-server --install-extension amazonwebservices.amazon-q-vscode
+              
               # Restart code server
+              echo "INFO: Final restart of code-server"
               sudo systemctl restart code-server@ubuntu
+              
+              # Store password in SSM Parameter Store for easy retrieval
+              echo "INFO: Storing password in SSM Parameter Store"
+              sleep 10  # Wait for config file to be fully written
+              CODE_SERVER_PASSWORD=$(sudo grep "^password:" /home/ubuntu/.config/code-server/config.yaml | cut -d' ' -f2)
+              echo "INFO: Extracted password, creating SSM parameter"
+              aws ssm put-parameter \
+                --name "/code-server/password" \
+                --value "$CODE_SERVER_PASSWORD" \
+                --type "SecureString" \
+                --region ${AWS::Region} \
+                --overwrite
+              echo "INFO: SSM parameter creation complete"
+              echo "INFO: UserData script execution finished"
             - VERSION: !Ref VSCodeServerVersion
 #------------------------------------------------------
 # CloudFront Cached Policy
@@ -290,3 +350,8 @@ Outputs:
     Value: !Ref VSCodeServer
     Export:
       Name: !Sub ${AWS::StackName}-code-server-instance-id
+  VSCodeServerPasswordSSM:
+    Description: SSM Parameter containing the code-server password
+    Value: "/code-server/password"
+    Export:
+      Name: !Sub ${AWS::StackName}-code-server-password-ssm

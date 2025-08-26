@@ -73,6 +73,11 @@ cert: false
 
 **Option 1.** The code server has been exposed via a CloudFront distribution. You can find the https endpoint in the CloudFormation console output.
 
+**Password Retrieval:** The code-server password is automatically stored in AWS Systems Manager Parameter Store. Retrieve it using:
+```bash
+aws ssm get-parameter --name "/code-server/password" --with-decryption --region <your-region>
+```
+
 **Option 2.** Use AWS System Manager (SSM) and port forwarding to forward the code server to local host as the following command. In this case, there are prerequisites:
 
 - Setup [aws-cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html)
