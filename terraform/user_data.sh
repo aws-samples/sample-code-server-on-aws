@@ -1,17 +1,10 @@
 #!/bin/bash
 echo "INFO: Starting UserData script execution"
 
-# Wait for automatic apt updates to complete
-echo "INFO: Waiting for automatic apt updates to complete"
-while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-  echo "INFO: Waiting for apt lock to be released..."
-  sleep 10
-done
-
 # Install AWS CLI
 echo "INFO: Installing AWS CLI prerequisites"
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip
+apt-get -o DPkg::Lock::Timeout=-1 update
+DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=-1 install -y curl unzip
 echo "INFO: Prerequisites installed, downloading AWS CLI"
 curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip -o /tmp/aws-cli.zip
 echo "INFO: Extracting AWS CLI"
