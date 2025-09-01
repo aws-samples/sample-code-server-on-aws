@@ -1,0 +1,27 @@
+# AWS Region (must be one of: us-west-2, us-east-1, ap-southeast-1)
+aws_region = "us-west-2"
+
+# Code-server version to install
+vscode_server_version = "4.91.1"
+
+# EC2 instance type
+instance_type = "t2.xlarge"
+
+# Optional: Specify existing VPC ID (leave empty to use default VPC)
+# vpc_id = "vpc-12345678"
+
+# Optional: Specify existing subnet ID (leave empty to use default subnet)
+# subnet_id = "subnet-12345678"
+
+# CIDR block for internet access
+internet_cidr_block = "0.0.0.0/0"
+
+# CloudFront origin request policy ID
+origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+
+# Common tags to apply to all resources
+common_tags = {
+  Project     = "code-server"
+  Environment = "dev"
+  Owner       = "your-name"
+}
